@@ -1,0 +1,21 @@
+{
+  "name": "kit-sandbox",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "prepare": "svelte-kit sync || echo ''"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-auto": "^7.0.0",
+    "@sveltejs/kit": "^2.53",
+    "@sveltejs/vite-plugin-svelte": "^6.2.4",
+    "svelte": "workspace:*",
+    "typescript": "^5.5.4",
+    "vite": "^7.1.11",
+    "valibot": "^1.2.0"
+  }
+}

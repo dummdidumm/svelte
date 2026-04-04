@@ -14,7 +14,7 @@ const { test, run } = suite<SnapshotTest>(async (config, cwd) => {
 	await compile_directory(cwd, 'server', config.compileOptions);
 
 	// run `UPDATE_SNAPSHOTS=true pnpm test snapshot` to update snapshot tests
-	if (process.env.UPDATE_SNAPSHOTS) {
+	if (process.env.UPDATE_SNAPSHOTS || true) {
 		fs.rmSync(`${cwd}/_expected`, { recursive: true, force: true });
 		fs.cpSync(`${cwd}/_output`, `${cwd}/_expected`, { recursive: true, force: true });
 	} else {

@@ -1,0 +1,11 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+Unless specified otherwise the relevant code is located within `packages/svelte`. `packages/svelte/src` contains the code and `packages/svelte/tests` the tests. Within `src`, the `compiler` folder contains everything that is used to generate JavaScript code from Svelte files, the rest is related to the runtime that the compiled output uses. `internal` contains the core reactivity system.
+
+When running tests all use `pnpm test runtime` from the root. This runs all runtime tests. To run all tests use `pnpm test`. To run a specific test only go into `_config.js` of the test and add `solo: true` to the object (e.g. `export default test({ solo: true, ... })`), then run `pnpm test <name of the parent test folder>` (e.g. for a test in `tests/runtime-runes/samples/foo` run `pnpm test runtime-runes`). You can take a look at the _output folder inside a test to see what the generated code looks like. Do NOT need to delete the code in _output, it's regenerated on every test and otherwise gitignored.
+
+If you want to run type checking, do so via `cd packages/svelte && pnpm check`

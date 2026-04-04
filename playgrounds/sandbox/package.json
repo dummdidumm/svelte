@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "prepare": "node scripts/create-app-svelte.js",
-    "dev": "SVELTE_INSPECTOR_OPTIONS=false vite --host",
-    "ssr": "SVELTE_INSPECTOR_OPTIONS=false node --conditions=development ./ssr-dev.js",
+    "dev": " vite --host",
+    "ssr": " node --conditions=development ./ssr-dev.js",
     "build": "vite build --outDir dist/client && vite build --outDir dist/server --ssr ssr-prod.js",
     "prod": "npm run build && node dist/server/ssr-prod",
     "preview": "vite preview",
@@ -23,6 +23,8 @@
     "tinyglobby": "^0.2.12",
     "vite": "^7.1.11",
     "vite-plugin-devtools-json": "^1.0.0",
-    "vite-plugin-inspect": "^11.3.3"
+    "vite-plugin-inspect": "^11.3.3",
+    "svelty-picker": "*",
+    "bits-ui": "*"
   }
 }

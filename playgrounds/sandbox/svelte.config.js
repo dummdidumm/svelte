@@ -4,6 +4,7 @@ export default {
 		css: 'injected',
 
 		hmr: false,
+		dev: true,
 
 		experimental: {
 			async: true

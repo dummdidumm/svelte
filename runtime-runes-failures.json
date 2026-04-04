@@ -1,0 +1,116 @@
+{
+  "current": {
+    "command": "pnpm test runtime-runes",
+    "captured_at": "2026-03-12T10:43:48.673Z",
+    "failed_count": 10,
+    "failed_tests": [
+      {
+        "file": "packages/svelte/tests/runtime-runes/test.ts",
+        "test_name": "async-abort-signal (dom)",
+        "key": "packages/svelte/tests/runtime-runes/test.ts > async-abort-signal (dom)"
+      },
+      {
+        "file": "packages/svelte/tests/runtime-runes/test.ts",
+        "test_name": "async-abort-signal (hydrate)",
+        "key": "packages/svelte/tests/runtime-runes/test.ts > async-abort-signal (hydrate)"
+      },
+      {
+        "file": "packages/svelte/tests/runtime-runes/test.ts",
+        "test_name": "async-boundary-pending-live (dom)",
+        "key": "packages/svelte/tests/runtime-runes/test.ts > async-boundary-pending-live (dom)"
+      },
+      {
+        "file": "packages/svelte/tests/runtime-runes/test.ts",
+        "test_name": "async-boundary-pending-live (hydrate)",
+        "key": "packages/svelte/tests/runtime-runes/test.ts > async-boundary-pending-live (hydrate)"
+      },
+      {
+        "file": "packages/svelte/tests/runtime-runes/test.ts",
+        "test_name": "async-boundary-reset (dom)",
+        "key": "packages/svelte/tests/runtime-runes/test.ts > async-boundary-reset (dom)"
+      },
+      {
+        "file": "packages/svelte/tests/runtime-runes/test.ts",
+        "test_name": "async-boundary-reset (hydrate)",
+        "key": "packages/svelte/tests/runtime-runes/test.ts > async-boundary-reset (hydrate)"
+      },
+      {
+        "file": "packages/svelte/tests/runtime-runes/test.ts",
+        "test_name": "async-redirect (dom)",
+        "key": "packages/svelte/tests/runtime-runes/test.ts > async-redirect (dom)"
+      },
+      {
+        "file": "packages/svelte/tests/runtime-runes/test.ts",
+        "test_name": "async-redirect (hydrate)",
+        "key": "packages/svelte/tests/runtime-runes/test.ts > async-redirect (hydrate)"
+      },
+      {
+        "file": "packages/svelte/tests/runtime-runes/test.ts",
+        "test_name": "async-redirect-initial (dom)",
+        "key": "packages/svelte/tests/runtime-runes/test.ts > async-redirect-initial (dom)"
+      },
+      {
+        "file": "packages/svelte/tests/runtime-runes/test.ts",
+        "test_name": "async-redirect-initial (hydrate)",
+        "key": "packages/svelte/tests/runtime-runes/test.ts > async-redirect-initial (hydrate)"
+      }
+    ]
+  },
+  "pending": {
+    "command": "pnpm test runtime-runes",
+    "captured_at": "2026-03-12T11:17:20.259Z",
+    "failed_count": 10,
+    "failed_tests": [
+      {
+        "file": "packages/svelte/tests/runtime-runes/test.ts",
+        "test_name": "async-abort-signal (dom)",
+        "key": "packages/svelte/tests/runtime-runes/test.ts > async-abort-signal (dom)"
+      },
+      {
+        "file": "packages/svelte/tests/runtime-runes/test.ts",
+        "test_name": "async-abort-signal (hydrate)",
+        "key": "packages/svelte/tests/runtime-runes/test.ts > async-abort-signal (hydrate)"
+      },
+      {
+        "file": "packages/svelte/tests/runtime-runes/test.ts",
+        "test_name": "async-boundary-pending-live (dom)",
+        "key": "packages/svelte/tests/runtime-runes/test.ts > async-boundary-pending-live (dom)"
+      },
+      {
+        "file": "packages/svelte/tests/runtime-runes/test.ts",
+        "test_name": "async-boundary-pending-live (hydrate)",
+        "key": "packages/svelte/tests/runtime-runes/test.ts > async-boundary-pending-live (hydrate)"
+      },
+      {
+        "file": "packages/svelte/tests/runtime-runes/test.ts",
+        "test_name": "async-boundary-reset (dom)",
+        "key": "packages/svelte/tests/runtime-runes/test.ts > async-boundary-reset (dom)"
+      },
+      {
+        "file": "packages/svelte/tests/runtime-runes/test.ts",
+        "test_name": "async-boundary-reset (hydrate)",
+        "key": "packages/svelte/tests/runtime-runes/test.ts > async-boundary-reset (hydrate)"
+      },
+      {
+        "file": "packages/svelte/tests/runtime-runes/test.ts",
+        "test_name": "async-redirect (dom)",
+        "key": "packages/svelte/tests/runtime-runes/test.ts > async-redirect (dom)"
+      },
+      {
+        "file": "packages/svelte/tests/runtime-runes/test.ts",
+        "test_name": "async-redirect (hydrate)",
+        "key": "packages/svelte/tests/runtime-runes/test.ts > async-redirect (hydrate)"
+      },
+      {
+        "file": "packages/svelte/tests/runtime-runes/test.ts",
+        "test_name": "async-redirect-initial (dom)",
+        "key": "packages/svelte/tests/runtime-runes/test.ts > async-redirect-initial (dom)"
+      },
+      {
+        "file": "packages/svelte/tests/runtime-runes/test.ts",
+        "test_name": "async-redirect-initial (hydrate)",
+        "key": "packages/svelte/tests/runtime-runes/test.ts > async-redirect-initial (hydrate)"
+      }
+    ]
+  }
+}
