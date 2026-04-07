@@ -53,6 +53,7 @@ import {
 	flushSync,
 	schedule_effect
 } from './reactivity/batch.js';
+import { get_status, set_status } from './reactivity/batch.js';
 import { handle_error } from './error-handling.js';
 import { UNINITIALIZED } from '../../constants.js';
 import { captured_signals } from './legacy.js';
@@ -155,8 +156,9 @@ export function increment_write_version() {
  */
 export function is_dirty(reaction) {
 	var flags = reaction.f;
+	var status = get_status(reaction);
 
-	if ((flags & DIRTY) !== 0) {
+	if ((status & DIRTY) !== 0) {
 		return true;
 	}
 
@@ -164,7 +166,7 @@ export function is_dirty(reaction) {
 		reaction.f &= ~WAS_MARKED;
 	}
 
-	if ((flags & MAYBE_DIRTY) !== 0) {
+	if ((status & MAYBE_DIRTY) !== 0) {
 		var dependencies = /** @type {Value[]} */ (reaction.deps);
 		var length = dependencies.length;
 
@@ -180,13 +182,8 @@ export function is_dirty(reaction) {
 			}
 		}
 
-		if (
-			(flags & CONNECTED) !== 0 &&
-			// During time traveling we don't want to reset the status so that
-			// traversal of the graph in the other batches still happens
-			batch_values === null
-		) {
-			set_signal_status(reaction, CLEAN);
+		if ((flags & CONNECTED) !== 0) {
+			set_status(reaction, CLEAN);
 		}
 	}
 
@@ -399,7 +396,14 @@ function remove_reaction(signal, dependency) {
 			derived.f &= ~WAS_MARKED;
 		}
 
-		update_derived_status(derived);
+		// In a fork it's possible that a derived is executed and gets reactions, then commits, but is
+		// never re-executed. This is possible when the derived is only executed once in the context
+		// of a new branch which happens before fork.commit() runs. In this case, the derived still has
+		// UNINITIALIZED as its value, and then when it's loosing its reactions we need to ensure it stays
+		// DIRTY so it is reexecuted once someone wants its value again.
+		if (derived.v !== UNINITIALIZED) {
+			update_derived_status(derived);
+		}
 
 		// freeze any effects inside this derived
 		freeze_derived_effects(derived);

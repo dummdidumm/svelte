@@ -36,13 +36,24 @@ import { flush_eager_effects, old_values, set_eager_effects, source, update } fr
 import { eager_effect, unlink_effect } from './effects.js';
 import { defer_effect } from './utils.js';
 import { UNINITIALIZED } from '../../../constants.js';
-import { set_signal_status } from './status.js';
 import { legacy_is_updating_store } from './store.js';
 import { invariant } from '../../shared/dev.js';
 import { log_effect_tree } from '../dev/debug.js';
 
 /** @type {Set<Batch>} */
 const batches = new Set();
+
+const STATUS_BITS = DIRTY | MAYBE_DIRTY | CLEAN;
+const STATUS_MASK = ~STATUS_BITS;
+
+/**
+ * Write a signal's status bits directly, bypassing batch overlay routing.
+ * @param {import('#client').Signal} signal
+ * @param {number} status
+ */
+function write_signal_status(signal, status) {
+	signal.f = (signal.f & STATUS_MASK) | status;
+}
 
 /** @type {Batch | null} */
 export let current_batch = null;
@@ -91,6 +102,13 @@ let uid = 1;
 
 export class Batch {
 	id = uid++;
+
+	/**
+	 * Batch-local overrides for a signal's DIRTY/MAYBE_DIRTY/CLEAN status.
+	 * Only populated when multiple pending batches touch the same signal graph.
+	 * @type {Map<import('#client').Signal, number>}
+	 */
+	status_overlays = new Map();
 
 	/**
 	 * The current values of any signals that are updated in this batch.
@@ -172,6 +190,12 @@ export class Batch {
 	 */
 	#skipped_branches = new Map();
 
+	/**
+	 * Inverse of #skipped_branches which we need to tell prior batches to unskip them when committing
+	 * @type {Set<Effect>}
+	 */
+	#unskipped_branches = new Set();
+
 	is_fork = false;
 
 	#decrement_queued = false;
@@ -215,28 +239,31 @@ export class Batch {
 		if (!this.#skipped_branches.has(effect)) {
 			this.#skipped_branches.set(effect, { d: [], m: [] });
 		}
+		this.#unskipped_branches.delete(effect);
 	}
 
 	/**
 	 * Remove an effect from the #skipped_branches map and reschedule
 	 * any tracked dirty/maybe_dirty child effects
 	 * @param {Effect} effect
+	 * @param {(e: Effect) => void} callback
 	 */
-	unskip_effect(effect) {
+	unskip_effect(effect, callback = (e) => this.schedule(e)) {
 		var tracked = this.#skipped_branches.get(effect);
 		if (tracked) {
 			this.#skipped_branches.delete(effect);
 
 			for (var e of tracked.d) {
-				set_signal_status(e, DIRTY);
-				this.schedule(e);
+				set_status(e, DIRTY);
+				callback(e);
 			}
 
 			for (e of tracked.m) {
-				set_signal_status(e, MAYBE_DIRTY);
-				this.schedule(e);
+				set_status(e, MAYBE_DIRTY);
+				callback(e);
 			}
 		}
+		this.#unskipped_branches.add(effect);
 	}
 
 	#process() {
@@ -250,12 +277,12 @@ export class Batch {
 		if (!this.#is_deferred()) {
 			for (const e of this.#dirty_effects) {
 				this.#maybe_dirty_effects.delete(e);
-				set_signal_status(e, DIRTY);
+				set_status(e, DIRTY);
 				this.schedule(e);
 			}
 
 			for (const e of this.#maybe_dirty_effects) {
-				set_signal_status(e, MAYBE_DIRTY);
+				set_status(e, MAYBE_DIRTY);
 				this.schedule(e);
 			}
 		}
@@ -300,8 +327,10 @@ export class Batch {
 		legacy_updates = null;
 
 		if (this.#is_deferred() || this.#is_blocked()) {
+			current_batch = this;
 			this.#defer_effects(render_effects);
 			this.#defer_effects(effects);
+			current_batch = null;
 
 			for (const [e, t] of this.#skipped_branches) {
 				reset_branch(e, t);
@@ -310,6 +339,9 @@ export class Batch {
 			if (this.#pending.size === 0) {
 				batches.delete(this);
 			}
+			// if (batches.size === 0) {
+			// 	this.#status_overlays.clear();
+			// }
 
 			// clear effects. Those that are still needed will be rescheduled through unskipping the skipped branches.
 			this.#dirty_effects.clear();
@@ -349,7 +381,9 @@ export class Batch {
 			next_batch.#process();
 		}
 
-		if (!batches.has(this)) {
+		// In sync mode flushSync can cause #commit to wrongfully think that there needs to be a rebase, so we only do it in async mode
+		// TODO fix the underlying cause, otherwise this will likely regress when non-async mode is removed
+		if (async_mode_flag && !batches.has(this)) {
 			this.#commit();
 		}
 	}
@@ -381,7 +415,6 @@ export class Batch {
 				} else if (async_mode_flag && (flags & (RENDER_EFFECT | MANAGED_EFFECT)) !== 0) {
 					render_effects.push(effect);
 				} else if (is_dirty(effect)) {
-					if ((flags & BLOCK_EFFECT) !== 0) this.#maybe_dirty_effects.add(effect);
 					update_effect(effect);
 				}
 
@@ -479,6 +512,7 @@ export class Batch {
 		for (const fn of this.#discard_callbacks) fn(this);
 		this.#discard_callbacks.clear();
 
+		this.status_overlays.clear();
 		batches.delete(this);
 	}
 
@@ -530,6 +564,19 @@ export class Batch {
 					invariant(batch.#roots.length === 0, 'Batch has scheduled roots');
 				}
 
+				// A batch was unskipped in a later batch -> tell prior batches to unskip it, too
+				if (is_earlier) {
+					for (const unskipped of this.#unskipped_branches) {
+						batch.unskip_effect(unskipped, (e) => {
+							if ((e.f & (BLOCK_EFFECT | ASYNC)) !== 0) {
+								batch.schedule(e);
+							} else {
+								batch.#defer_effects([e]);
+							}
+						});
+					}
+				}
+
 				batch.activate();
 
 				/** @type {Set<Value>} */
@@ -553,7 +600,7 @@ export class Batch {
 						depends_on(effect, current_unequal, checked)
 					) {
 						if ((effect.f & (ASYNC | BLOCK_EFFECT)) !== 0) {
-							set_signal_status(effect, DIRTY);
+							set_status(effect, DIRTY);
 							batch.schedule(effect);
 						} else {
 							batch.#dirty_effects.add(effect);
@@ -586,6 +633,8 @@ export class Batch {
 				}
 			}
 		}
+
+		this.status_overlays.clear();
 	}
 
 	/**
@@ -789,8 +838,89 @@ export class Batch {
 
 		this.#roots.push(e);
 	}
+
+	/**
+	 * @param {import('#client').Signal} signal
+	 */
+	get_status(signal) {
+		return this.status_overlays.get(signal) ?? signal.f & STATUS_BITS;
+	}
+
+	/**
+	 * @param {import('#client').Signal} signal
+	 */
+	has_status(signal) {
+		return this.status_overlays.has(signal);
+	}
+
+	/**
+	 * Snapshot the *current* status of a signal into this batch overlay.
+	 * No-op if the batch already has an entry.
+	 * @param {import('#client').Signal} signal
+	 */
+	snapshot_status(signal) {
+		// TODO investigate why we can end up here in non async mode
+		if (async_mode_flag && !this.status_overlays.has(signal)) {
+			this.status_overlays.set(signal, signal.f & STATUS_BITS);
+		}
+	}
+
+	/**
+	 * @param {import('#client').Signal} signal
+	 * @param {number} status
+	 */
+	set_status(signal, status) {
+		if ((this.status_overlays.has(signal) && batches.size > 0) || this.is_fork) {
+			this.status_overlays.set(signal, status);
+		} else {
+			write_signal_status(signal, status);
+		}
+	}
 }
 
+/**
+ * A batch is finished once it is no longer tracked in the active `batches` set.
+ * @param {Batch} batch
+ */
+export function is_batch_finished(batch) {
+	return !batches.has(batch);
+}
+
+/**
+ * Snapshot a signal status into a batch overlay (only if missing).
+ * @param {Batch} batch
+ * @param {import('#client').Signal} signal
+ */
+export function snapshot_status(batch, signal) {
+	batch.snapshot_status(signal);
+}
+
+/**
+ * Read a signal status, respecting overlays for the active batch context.
+ * Prefers `current_batch`, then `previous_batch`.
+ * @param {import('#client').Signal} signal
+ */
+export function get_status(signal) {
+	var batch = current_batch ?? previous_batch;
+	return batch ? batch.get_status(signal) : signal.f & STATUS_BITS;
+}
+
+/**
+ * Set a signal status for the active batch context.
+ * If a batch context exists, stores into the batch overlay; otherwise writes the signal flags.
+ * @param {import('#client').Signal} signal
+ * @param {number} status
+ */
+export function set_status(signal, status) {
+	var batch = current_batch ?? previous_batch;
+	if (batch) {
+		batch.set_status(signal, status);
+	} else {
+		write_signal_status(signal, status);
+	}
+}
+
+// TODO Svelte@6 think about removing the callback argument.
 /**
  * Synchronously flush any pending updates.
  * Returns void if no callback is provided, otherwise returns the result of calling the callback.
@@ -964,7 +1094,7 @@ function mark_effects(value, sources, marked, checked) {
 				(flags & DIRTY) === 0 &&
 				depends_on(reaction, sources, checked)
 			) {
-				set_signal_status(reaction, DIRTY);
+				set_status(reaction, DIRTY);
 				schedule_effect(/** @type {Effect} */ (reaction));
 			}
 		}
@@ -987,7 +1117,7 @@ function mark_eager_effects(value, effects) {
 		if ((flags & DERIVED) !== 0) {
 			mark_eager_effects(/** @type {Derived} */ (reaction), effects);
 		} else if ((flags & EAGER_EFFECT) !== 0) {
-			set_signal_status(reaction, DIRTY);
+			set_status(reaction, DIRTY);
 			effects.add(/** @type {Effect} */ (reaction));
 		}
 	}
@@ -1100,13 +1230,14 @@ function reset_branch(effect, tracked) {
 		return;
 	}
 
-	if ((effect.f & DIRTY) !== 0) {
+	const status = get_status(effect);
+	if ((status & DIRTY) !== 0) {
 		tracked.d.push(effect);
-	} else if ((effect.f & MAYBE_DIRTY) !== 0) {
+	} else if ((status & MAYBE_DIRTY) !== 0) {
 		tracked.m.push(effect);
 	}
 
-	set_signal_status(effect, CLEAN);
+	set_status(effect, CLEAN);
 
 	var e = effect.first;
 	while (e !== null) {
@@ -1120,7 +1251,7 @@ function reset_branch(effect, tracked) {
  * @param {Effect} effect
  */
 function reset_all(effect) {
-	set_signal_status(effect, CLEAN);
+	set_status(effect, CLEAN);
 
 	var e = effect.first;
 	while (e !== null) {
@@ -1193,6 +1324,8 @@ export function fork(fn) {
 			// proactively flush them
 			// TODO maybe there's a better implementation?
 			flushSync(() => {
+				const b = Batch.ensure();
+				b.status_overlays = new Map(batch.status_overlays);
 				/** @type {Set<Effect>} */
 				var eager_effects = new Set();
 
@@ -1203,7 +1336,6 @@ export function fork(fn) {
 				set_eager_effects(eager_effects);
 				flush_eager_effects();
 			});
-
 			batch.flush();
 			await settled;
 		},

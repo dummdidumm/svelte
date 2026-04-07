@@ -238,6 +238,7 @@ export function run(thunks) {
 	const decrement_pending = increment_pending();
 
 	var active = /** @type {Effect} */ (active_effect);
+	var batch = /** @type {Batch} */ (current_batch);
 
 	/** @type {null | { error: any }} */
 	var errored = null;
@@ -247,7 +248,18 @@ export function run(thunks) {
 		errored = { error }; // wrap in object in case a promise rejects with a falsy value
 
 		if (!aborted(active)) {
-			invoke_error_boundary(error, active);
+			if (batch.is_fork) {
+				batch.activate();
+				batch.apply();
+			}
+
+			try {
+				invoke_error_boundary(error, active);
+			} finally {
+				if (batch.is_fork) {
+					batch.deactivate();
+				}
+			}
 		}
 	};
 

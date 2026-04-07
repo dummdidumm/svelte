@@ -40,7 +40,9 @@ import {
 	batch_values,
 	eager_block_effects,
 	schedule_effect,
-	legacy_updates
+	legacy_updates,
+	is_batch_finished,
+	snapshot_status
 } from './batch.js';
 import { proxy } from '../proxy.js';
 import { execute_derived } from './deriveds.js';
@@ -77,6 +79,7 @@ export function source(v, stack) {
 	var signal = {
 		f: 0, // TODO ideally we could skip this altogether, but it causes type errors
 		v,
+		batch: null,
 		reactions: null,
 		equals,
 		rv: 0,
@@ -223,11 +226,7 @@ export function internal_set(source, value, updated_during_traversal = null) {
 				execute_derived(derived);
 			}
 
-			// During time traveling we don't want to reset the status so that
-			// traversal of the graph in the other batches still happens
-			if (batch_values === null) {
-				update_derived_status(derived);
-			}
+			update_derived_status(derived);
 		}
 
 		source.wv = increment_write_version();
@@ -329,6 +328,7 @@ function mark_reactions(signal, status, updated_during_traversal) {
 
 	var runes = is_runes();
 	var length = reactions.length;
+	var batch = /** @type {Batch} */ (Batch.ensure());
 
 	for (var i = 0; i < length; i++) {
 		var reaction = reactions[i];
@@ -341,6 +341,17 @@ function mark_reactions(signal, status, updated_during_traversal) {
 		if (DEV && (flags & EAGER_EFFECT) !== 0) {
 			eager_effects.add(reaction);
 			continue;
+		}
+
+		// Ensure each reaction's dirty state belongs to the current batch.
+		// If a still-pending batch already owns it, snapshot its current status into that batch's overlay
+		// before transferring ownership to this batch.
+		var owner = reaction.batch;
+		if (owner !== batch && !batch.has_status(reaction) && !batch.is_fork) {
+			if (owner !== null && !is_batch_finished(owner)) {
+				snapshot_status(owner, reaction);
+			}
+			reaction.batch = batch;
 		}
 
 		var not_dirty = (flags & DIRTY) === 0;

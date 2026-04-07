@@ -104,6 +104,7 @@ function create_effect(type, fn) {
 		deps: null,
 		nodes: null,
 		f: type | DIRTY | CONNECTED,
+		batch: null,
 		first: null,
 		fn,
 		last: null,
