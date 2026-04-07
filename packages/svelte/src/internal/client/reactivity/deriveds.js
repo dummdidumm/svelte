@@ -88,6 +88,7 @@ export function derived(fn) {
 		fn,
 		reactions: null,
 		rv: 0,
+		batch: null,
 		v: /** @type {V} */ (UNINITIALIZED),
 		wv: 0,
 		parent: parent_derived ?? active_effect,
@@ -384,7 +385,6 @@ export function execute_derived(derived) {
  * @returns {void}
  */
 export function update_derived(derived) {
-	var old_value = derived.v;
 	var value = execute_derived(derived);
 
 	if (!derived.equals(value)) {
@@ -394,9 +394,18 @@ export function update_derived(derived) {
 		// the underlying value will be updated when the fork is committed.
 		// otherwise, the next time we get here after a 'real world' state
 		// change, `derived.equals` may incorrectly return `true`
-		if (!current_batch?.is_fork || derived.deps === null) {
+		if (current_batch !== null) {
+			current_batch.capture(derived, value, true);
+		} else {
 			derived.v = value;
-			current_batch?.capture(derived, old_value, true);
+		}
+
+		if (!current_batch?.is_fork || derived.deps === null) {
+			// if (current_batch !== null) {
+			// 	current_batch.capture(derived, value, true);
+			// } else {
+			// 	derived.v = value;
+			// }
 
 			// deriveds without dependencies should never be recomputed
 			if (derived.deps === null) {
@@ -413,16 +422,18 @@ export function update_derived(derived) {
 	}
 
 	// During time traveling we don't want to reset the status so that
-	// traversal of the graph in the other batches still happens
+	// traversal of the graph in the other batches still happens.
+	// Batch overlays handle status isolation, but forks still rely on `batch_values`
+	// for value overlays.
 	if (batch_values !== null) {
 		// only cache the value if we're in a tracking context, otherwise we won't
 		// clear the cache in `mark_reactions` when dependencies are updated
 		if (effect_tracking() || current_batch?.is_fork) {
 			batch_values.set(derived, value);
 		}
-	} else {
-		update_derived_status(derived);
 	}
+
+	update_derived_status(derived);
 }
 
 /**

@@ -7,12 +7,15 @@ import type {
 	TransitionManager
 } from '#client';
 import type { Boundary } from '../dom/blocks/boundary';
+import type { Batch } from './batch';
 
 export interface Signal {
 	/** Flags bitmask */
 	f: number;
 	/** Write version */
 	wv: number;
+	/** Batch that last wrote status for this signal (overlay ownership) */
+	batch: Batch | null;
 }
 
 export interface Value<V = unknown> extends Signal {

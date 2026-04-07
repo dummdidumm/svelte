@@ -1,6 +1,6 @@
 /** @import { Derived, Effect, Value } from '#client' */
 import { CLEAN, DERIVED, DIRTY, MAYBE_DIRTY, WAS_MARKED } from '#client/constants';
-import { set_signal_status } from './status.js';
+import { get_status, set_status } from './batch.js';
 
 /**
  * @param {Value[] | null} deps
@@ -25,9 +25,10 @@ function clear_marked(deps) {
  * @param {Set<Effect>} maybe_dirty_effects
  */
 export function defer_effect(effect, dirty_effects, maybe_dirty_effects) {
-	if ((effect.f & DIRTY) !== 0) {
+	const status = get_status(effect);
+	if ((status & DIRTY) !== 0) {
 		dirty_effects.add(effect);
-	} else if ((effect.f & MAYBE_DIRTY) !== 0) {
+	} else if ((status & MAYBE_DIRTY) !== 0) {
 		maybe_dirty_effects.add(effect);
 	}
 
@@ -36,5 +37,5 @@ export function defer_effect(effect, dirty_effects, maybe_dirty_effects) {
 	clear_marked(effect.deps);
 
 	// mark as clean so they get scheduled if they depend on pending async state
-	set_signal_status(effect, CLEAN);
+	set_status(effect, CLEAN);
 }
